@@ -1,0 +1,35 @@
+[build-system]
+requires = ["maturin>=1.3.2"]
+build-backend = "maturin"
+
+[project]
+name = "polars_gzcsv"
+requires-python = ">=3.9"
+version = "0.1.0"
+
+license = { file = "LICENSE.txt" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "License :: OSI Approved :: MIT License",
+]
+authors = [{ name = "Tianren Qin", email = "tq9695@gmail.com" }]
+dependencies = ["polars >= 1",]
+
+keywords = ["polars-extension", "scientific-computing", "data-science"]
+
+[tool.maturin]
+strip = true
+python-source = "python"
+module-name = "polars_gzcsv._gzcsv"
+
+[tool.ruff]
+line-length = 100
+fix = true
+src = ["python"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

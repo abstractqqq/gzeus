@@ -1,10 +1,13 @@
 [package]
-name = "polars_io_csv_gz"
+name = "polars_gzcsv"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "polars_gzcsv"
+crate-type = ["cdylib"]
+
 [dependencies]
 flate2 = "1.0.34"
-polars = {version = "0.44.0", features = ["csv", "lazy"]}
-pyo3 = "0.21"
-# zip = "2.2.0"
+memchr = "2.7.4"
+pyo3 = {version = "0.22.6", features = ["abi3-py39"]}

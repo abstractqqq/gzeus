@@ -1,3 +1,3 @@
-# Unzip .csv.gz files by chunks and read via Polars.
+# Decompress .csv.gz files by big chunks.
 
-As title.
+As title. Not ready yet.
