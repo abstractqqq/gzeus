@@ -10,6 +10,7 @@ use pyo3::{
 #[pymodule]
 #[pyo3(name = "_gzcsv")]
 fn gzcsv(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<py_gzcsv::PyGzCsvFileReader>()?;
+    m.add_class::<py_gzcsv::PyCsvChunker>()?;
+    m.add_class::<py_gzcsv::PyGzCsvChunker>()?;
     Ok(())
 }

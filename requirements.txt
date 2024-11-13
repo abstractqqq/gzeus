@@ -1,5 +1,9 @@
 # Needed for local development
 maturin[patchelf]>=1.3.2
-polars>=1
 pre-commit
 ipykernel
+
+# For testing
+polars>=1
+pandas>=1
+pyarrow
