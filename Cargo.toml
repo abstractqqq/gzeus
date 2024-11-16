@@ -10,4 +10,3 @@ crate-type = ["cdylib"]
 [dependencies]
 flate2 = "1.0.34"
 memchr = "2.7.4"
-pyo3 = {version = "0.22.6", features = ["abi3-py39"]}

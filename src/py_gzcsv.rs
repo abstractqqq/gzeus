@@ -28,15 +28,15 @@ pub struct PyGzCsvChunker {
 #[pymethods]
 impl PyGzCsvChunker {
     #[new]
-    #[pyo3(signature = (path, buffer_size, separator))]
-    fn new(path: &str, buffer_size: usize, separator: Vec<u8>) -> PyResult<Self> {
+    #[pyo3(signature = (path, buffer_size, line_change_symbol))]
+    fn new(path: &str, buffer_size: usize, line_change_symbol: Vec<u8>) -> PyResult<Self> {
         let file =
             File::open(path).map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
 
         let file_reader = BufReader::with_capacity(buffer_size, file);
         let gz: GzDecoder<BufReader<File>> = GzDecoder::new(file_reader);
 
-        let b = separator[0]; // by default bytes are translated to Vec<u8>
+        let b = line_change_symbol[0]; // by default bytes are translated to Vec<u8>
 
         Ok(Self {
             _chunker: CsvChunker::new(b),
@@ -101,13 +101,13 @@ pub struct PyCsvChunker {
 #[pymethods]
 impl PyCsvChunker {
     #[new]
-    #[pyo3(signature = (path, buffer_size, separator))]
-    fn new(path: &str, buffer_size: usize, separator: Vec<u8>) -> PyResult<Self> {
+    #[pyo3(signature = (path, buffer_size, line_change_symbol))]
+    fn new(path: &str, buffer_size: usize, line_change_symbol: Vec<u8>) -> PyResult<Self> {
         let file =
             File::open(path).map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
 
         let reader = BufReader::with_capacity(buffer_size, file);
-        let b = separator[0]; // by default bytes are translated to Vec<u8>
+        let b = line_change_symbol[0]; // by default bytes are translated to Vec<u8>
         Ok(Self {
             _chunker: CsvChunker::new(b),
             _chunk_buffer: vec![0u8; buffer_size + buffer_size / 4],

@@ -9,14 +9,14 @@ pub enum ReaderErr {
 
 pub struct CsvChunker {
     leftover_chunk: Vec<u8>,
-    separator: u8,
+    pub(crate) line_change_symbol: u8,
 }
 
 impl CsvChunker {
-    pub fn new(separator: u8) -> Self {
+    pub fn new(line_change_symbol: u8) -> Self {
         Self {
             leftover_chunk: vec![],
-            separator: separator,
+            line_change_symbol: line_change_symbol,
         }
     }
 
@@ -35,7 +35,10 @@ impl CsvChunker {
                 if n == 0 {
                     Err(ReaderErr::Finished)
                 } else {
-                    match memchr_iter(self.separator, &right[0..n]).rev().next() {
+                    match memchr_iter(self.line_change_symbol, &right[0..n])
+                        .rev()
+                        .next()
+                    {
                         Some(j) => {
                             let last_index = j + 1;
                             self.leftover_chunk.clear();
