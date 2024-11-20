@@ -1,12 +1,20 @@
 [package]
-name = "polars_gzcsv"
+name = "gzcsv"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "polars_gzcsv"
+name = "gzcsv"
 crate-type = ["cdylib"]
 
 [dependencies]
 flate2 = "1.0.34"
 memchr = "2.7.4"
+
+# Python Interop
+pyo3 = { version = "0.23", features = ["abi3-py39", "experimental-async"]}
+
+# cloud I/O
+object_store = {version = "0.11.1", features = ["aws"]}
+async-compression = {version = "0.4.17", features = ["gzip", "tokio"]}
+tokio = {version = "1.41.1", features = ["rt", "rt-multi-thread"]}

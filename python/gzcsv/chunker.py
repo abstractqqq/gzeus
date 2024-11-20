@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Iterator
 from .utils import (
     CompressionMethod,
-    check_compression
+    get_compression_method_local
 )
 from polars_gzcsv._gzcsv import (
-    PyGzCsvChunker
-    , PyCsvChunker
+    PyGzCsvChunker,
+    PyS3GzCsvChunker
 )
+
+__all__ = ["Chunker"]
 
 class Chunker:
     
@@ -45,7 +48,7 @@ class Chunker:
         self._reader = None
 
     def _check_reader(self):
-        # Only run when a read is called
+        # Always run this when a read is called
         if self._reader is None:
             raise ValueError("The file is not set yet. Please run `set_file` first.")
 
@@ -56,11 +59,16 @@ class Chunker:
         """
         Prepares the chunker by letting it know the file to be read.
         """
-        self.compression = check_compression(file_path)
+        self.compression = get_compression_method_local(file_path)
         if self.compression == CompressionMethod.GZ:
             self._reader = PyGzCsvChunker(str(file_path), self.buffer_size, self.symbol)
         else:
-            self._reader = PyCsvChunker(str(file_path), self.buffer_size, self.symbol)
+            raise ValueError("The underlying file is not compressed, and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`.")
+
+    def set_s3_file(self, bucket: str, path: str):
+        """
+        """
+        self._reader = PyS3GzCsvChunker(str(bucket), str(path), self.buffer_size, self.symbol)    
 
     def show_status(self):
         """
@@ -73,9 +81,9 @@ class Chunker:
                 print(f"Read process has finished. Total number of chunks read: {self._reader.n_reads()}.")
             else:
                 if self._reader.has_started():
-                    print(f"Read process has started. {self._reader.n_reads()}-chunks have been read.")
+                    print(f"Read process has started. {self._reader.n_reads()}-chunks have been read.\n")
                 else:
-                    print("Read process has not been started.")
+                    print(f"Read process has not been started.")
 
     def read_one(self) -> bytes:
         """
@@ -88,6 +96,6 @@ class Chunker:
 
         _ = self._check_reader()
         while not self._reader.is_finished():
-            data_bytes = self._reader.read_chunk()
-            if len(data_bytes) > 0:
-                yield data_bytes
+            bytes_read = self._reader.read_chunk()
+            if len(bytes_read) > 0:
+                yield bytes_read

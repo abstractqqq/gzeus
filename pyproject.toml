@@ -23,7 +23,7 @@ keywords = ["polars-extension", "scientific-computing", "data-science"]
 [tool.maturin]
 strip = true
 python-source = "python"
-module-name = "polars_gzcsv._gzcsv"
+module-name = "gzcsv._gzcsv"
 
 [tool.ruff]
 line-length = 100
