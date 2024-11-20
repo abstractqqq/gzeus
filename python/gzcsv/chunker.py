@@ -7,7 +7,7 @@ from .utils import (
     CompressionMethod,
     get_compression_method_local
 )
-from polars_gzcsv._gzcsv import (
+from gzcsv._gzcsv import (
     PyGzCsvChunker,
     PyS3GzCsvChunker
 )
@@ -65,10 +65,10 @@ class Chunker:
         else:
             raise ValueError("The underlying file is not compressed, and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`.")
 
-    def set_s3_file(self, bucket: str, path: str):
+    def set_s3_file(self, bucket: str, path: str, region:str):
         """
         """
-        self._reader = PyS3GzCsvChunker(str(bucket), str(path), self.buffer_size, self.symbol)    
+        self._reader = PyS3GzCsvChunker(str(bucket), str(path), region, self.buffer_size, self.symbol)    
 
     def show_status(self):
         """

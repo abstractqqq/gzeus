@@ -115,10 +115,12 @@ impl PyS3GzCsvChunker {
     async fn get_s3_bufreader(
         bucket: &str,
         path: &str,
+        region: &str,
         buffer_size: usize,
     ) -> PyResult<object_store::buffered::BufReader> {
         let store = AmazonS3Builder::from_env()
             .with_bucket_name(bucket)
+            .with_region(region)
             .build()
             .map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
 
@@ -144,15 +146,16 @@ impl PyS3GzCsvChunker {
 #[pymethods]
 impl PyS3GzCsvChunker {
     #[new]
-    #[pyo3(signature = (bucket, path, buffer_size, line_change_symbol))]
+    #[pyo3(signature = (bucket, path, region, buffer_size, line_change_symbol))]
     fn new<'py>(
         bucket: &str,
         path: &str,
+        region: &str,
         buffer_size: usize,
         line_change_symbol: Vec<u8>,
     ) -> PyResult<Self> {
         let rt = Runtime::new().map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
-        let reader = rt.block_on(Self::get_s3_bufreader(bucket, path, buffer_size))?;
+        let reader = rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))?;
         let b = line_change_symbol[0]; // by default bytes are translated to Vec<u8>
         let gz = GzipDecoder::new(reader);
         Ok(Self {
