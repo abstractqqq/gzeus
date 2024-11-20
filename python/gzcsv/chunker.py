@@ -1,6 +1,13 @@
 from __future__ import annotations
 
 import os
+import sys
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:  # 3.10, 3.9, 3.8
+    from typing_extensions import Self
+
 from pathlib import Path
 from typing import Iterator
 from .utils import (
@@ -48,6 +55,10 @@ class Chunker:
         self._reader = None
 
     def _check_reader(self):
+        """
+        Checks whether the internal reader is set.
+        """
+
         # Always run this when a read is called
         if self._reader is None:
             raise ValueError("The file is not set yet. Please run `set_file` first.")
@@ -55,9 +66,49 @@ class Chunker:
         if self._reader.is_finished():
             raise ValueError("The reader has finished reading. To being a new read, please run `set_file` again.")
 
-    def set_file(self, file_path: str | Path):
+    def with_buffer_size(self, buffer_size:int) -> Self:
+        """
+        Resets the buffer size of the Chunker.
+
+        Parameters
+        ----------
+        buffer_size
+            The internal buffer size. It should be at least 1_000_000, which is 1MB. Note that
+            if this is too high, your network might complain and you may have have disconnect issues
+            when reading from cloud storage like s3.
+        """
+        if buffer_size <= 1_000_000:
+            self.buffer_size = 1_000_000
+        else:
+            self.buffer_size = buffer_size
+
+        return self
+
+    def with_line_change(self, line_change_symbol:str) -> Self:
+        """
+        Resets the line change byte symbol.
+
+        Parameters
+        ----------
+        line_change_symbol
+            The line change symbol for the underlying text file. The most common one is '\n'.
+        """
+
+        symbol = line_change_symbol.encode()
+        if len(symbol) != 1:
+            raise ValueError("The line change symbol must be one byte only.")
+
+        self.symbol:bytes = symbol
+        return self
+
+    def with_local_file(self, file_path: str | Path) -> Self:
         """
         Prepares the chunker by letting it know the file to be read.
+
+        Parameters
+        ----------
+        file_path
+            The file path
         """
         self.compression = get_compression_method_local(file_path)
         if self.compression == CompressionMethod.GZ:
@@ -65,10 +116,28 @@ class Chunker:
         else:
             raise ValueError("The underlying file is not compressed, and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`.")
 
-    def set_s3_file(self, bucket: str, path: str, region:str):
+        return self
+
+    def with_s3_file(self, bucket: str, path: str, region:str) -> Self:
         """
         """
-        self._reader = PyS3GzCsvChunker(str(bucket), str(path), region, self.buffer_size, self.symbol)    
+        self._reader = PyS3GzCsvChunker(str(bucket), str(path), region, self.buffer_size, self.symbol)
+        return self
+
+    def n_reads(self) -> int:
+        """
+        Return the number of chunks read.
+        """
+        return self._reader.n_reads()
+
+    def is_finished() -> bool:
+        """
+        Whether the current reader has finished reading.
+        """
+        if self._reader is None:
+            return False
+        else: 
+            return self._reader.is_finished()
 
     def show_status(self):
         """

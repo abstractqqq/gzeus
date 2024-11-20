@@ -6,7 +6,7 @@ use pyo3::types::PyBytes;
 use std::fs::File;
 
 use async_compression::tokio::bufread::GzipDecoder;
-use object_store::aws::{AmazonS3, AmazonS3Builder};
+use object_store::aws::AmazonS3Builder;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use std::sync::{Arc, Mutex};
@@ -34,6 +34,7 @@ pub struct PyGzCsvChunker {
     started: bool,
     finished: bool,
     n_reads: usize,
+    bytes_decompressed: usize,
 }
 
 #[pymethods]
@@ -55,6 +56,7 @@ impl PyGzCsvChunker {
             started: false,
             finished: false,
             n_reads: 0,
+            bytes_decompressed: 0,
         })
     }
 
@@ -68,6 +70,10 @@ impl PyGzCsvChunker {
 
     pub fn n_reads(&self) -> usize {
         self.n_reads
+    }
+
+    pub fn bytes_decompressed(&self) -> usize {
+        self.bytes_decompressed
     }
 
     pub fn read_chunk<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
@@ -85,6 +91,7 @@ impl PyGzCsvChunker {
             {
                 Ok(n) => {
                     self.n_reads += 1;
+                    self.bytes_decompressed += n;
                     Ok(PyBytes::new(py, &self._chunk_buffer[..n]))
                 }
                 Err(e) => match e {
@@ -109,6 +116,7 @@ pub struct PyS3GzCsvChunker {
     started: bool,
     finished: bool,
     n_reads: usize,
+    bytes_decompressed: usize,
 }
 
 impl PyS3GzCsvChunker {
@@ -166,6 +174,7 @@ impl PyS3GzCsvChunker {
             started: false,
             finished: false,
             n_reads: 0,
+            bytes_decompressed: 0,
         })
     }
 
@@ -179,6 +188,10 @@ impl PyS3GzCsvChunker {
 
     pub fn n_reads(&self) -> usize {
         self.n_reads
+    }
+
+    pub fn bytes_decompressed(&self) -> usize {
+        self.bytes_decompressed
     }
 
     pub fn read_chunk<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
@@ -203,6 +216,7 @@ impl PyS3GzCsvChunker {
             match read_result {
                 Ok(n) => {
                     self.n_reads += 1;
+                    self.bytes_decompressed += n;
                     Ok(PyBytes::new(py, &self._chunk_buffer[..n]))
                 }
                 Err(e) => match e {
