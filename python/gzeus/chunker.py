@@ -61,7 +61,7 @@ class Chunker:
 
         # Always run this when a read is called
         if self._reader is None:
-            raise ValueError("The file is not set yet. Please run `set_file` first.")
+            raise ValueError("Target file is not set yet. Please run `with_*_file` first.")
 
         if self._reader.is_finished():
             raise ValueError("The reader has finished reading. To being a new read, please run `set_file` again.")
@@ -161,6 +161,15 @@ class Chunker:
                     print(f"Read process has started. {self._reader.n_reads()}-chunks have been read.\n")
                 else:
                     print(f"Read process has not been started.")
+
+    def read_full(self) -> bytes:
+        """
+        Read as much as the internal buffer allows, and after this read, declare the read to be finished. 
+        This will read at most self.buffer_size number of bytes, and should only be used when you know that 
+        the decompressed file is small enough to fit in the buffer. This should be used for convenience only.
+        """
+        _ = self._check_reader()
+        return self._reader.read_full()
 
     def read_one(self) -> bytes:
         """

@@ -1,16 +1,16 @@
 use crate::gzeus::{CsvChunker, ReaderErr};
 use flate2::bufread::GzDecoder;
-use pyo3::exceptions::{PyFileExistsError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use std::fs::File;
+use std::{fs::File, io::Read};
 
 use async_compression::tokio::bufread::GzipDecoder;
 use object_store::aws::AmazonS3Builder;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
+use tokio::{io::AsyncReadExt, runtime::Runtime};
 
 // There is no way to use a generic trait in a struct that we wish to use as a pyclass later.
 // Therefore, code here is quite redundant.
@@ -72,6 +72,25 @@ impl PyGzCsvChunker {
         self.bytes_decompressed
     }
 
+    pub fn read_full<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        if !self.started {
+            self.started = true;
+        }
+
+        match self._reader.read(&mut self._chunk_buffer) {
+            Ok(n) => {
+                self.n_reads += 1;
+                self.bytes_decompressed += n;
+                self.finished = true;
+                // Safety:
+                // Vec is contiguous, all u8s, and n is <= len()
+                // PyBytes is also immutable
+                Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
+            }
+            Err(ioe) => Err(PyErr::from(ioe)),
+        }
+    }
+
     pub fn read_chunk<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         if !self.started {
             self.started = true;
@@ -88,7 +107,10 @@ impl PyGzCsvChunker {
                 Ok(n) => {
                     self.n_reads += 1;
                     self.bytes_decompressed += n;
-                    Ok(PyBytes::new(py, &self._chunk_buffer[..n]))
+                    // Safety:
+                    // Vec is contiguous, all u8s, and n is <= len()
+                    // PyBytes is also immutable
+                    Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
                 }
                 Err(e) => match e {
                     ReaderErr::Finished => {
@@ -187,6 +209,34 @@ impl PyS3GzCsvChunker {
         self.bytes_decompressed
     }
 
+    pub fn read_full<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        if !self.started {
+            self.started = true;
+        }
+
+        let reader = self
+            ._reader
+            .get_mut()
+            .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
+
+        let read_result = self
+            ._async_rt
+            .block_on(async { reader.read(&mut self._chunk_buffer).await });
+
+        match read_result {
+            Ok(n) => {
+                self.n_reads += 1;
+                self.bytes_decompressed += n;
+                self.finished = true;
+                // Safety:
+                // Vec is contiguous, all u8s, and n is <= len()
+                // PyBytes is also immutable
+                Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
+            }
+            Err(ioe) => Err(PyErr::from(ioe)),
+        }
+    }
+
     pub fn read_chunk<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         if !self.started {
             self.started = true;
@@ -210,7 +260,10 @@ impl PyS3GzCsvChunker {
                 Ok(n) => {
                     self.n_reads += 1;
                     self.bytes_decompressed += n;
-                    Ok(PyBytes::new(py, &self._chunk_buffer[..n]))
+                    // Safety:
+                    // Vec is contiguous, all u8s, and n is <= len()
+                    // PyBytes is also immutable
+                    Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
                 }
                 Err(e) => match e {
                     ReaderErr::Finished => {

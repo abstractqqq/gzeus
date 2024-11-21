@@ -12,7 +12,7 @@ flate2 = "1.0.34"
 memchr = {version = "2.7.4", features = ["std"]}
 
 # Python Interop
-pyo3 = { version = "0.23", features = ["abi3-py39", "experimental-async"]}
+pyo3 = { version = "0.23", features = ["abi3-py39"]} # "experimental-async"
 
 # cloud I/O
 object_store = {version = "0.11.1", features = ["aws"]}
