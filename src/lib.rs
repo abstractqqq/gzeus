@@ -1,5 +1,5 @@
-mod gzcsv_core;
-mod py_gzcsv;
+mod gzeus;
+mod py_gzeus;
 
 use pyo3::{
     pymodule,
@@ -8,9 +8,9 @@ use pyo3::{
 };
 
 #[pymodule]
-#[pyo3(name = "_gzcsv")]
+#[pyo3(name = "_gzeus")]
 fn gzcsv(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<py_gzcsv::PyGzCsvChunker>()?;
-    m.add_class::<py_gzcsv::PyS3GzCsvChunker>()?;
+    m.add_class::<py_gzeus::PyGzCsvChunker>()?;
+    m.add_class::<py_gzeus::PyS3GzCsvChunker>()?;
     Ok(())
 }

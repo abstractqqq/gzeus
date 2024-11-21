@@ -1,4 +1,4 @@
-use crate::gzcsv_core::{CsvChunker, ReaderErr};
+use crate::gzeus::{CsvChunker, ReaderErr};
 use flate2::bufread::GzDecoder;
 use pyo3::exceptions::{PyFileExistsError, PyValueError};
 use pyo3::prelude::*;
@@ -41,18 +41,14 @@ pub struct PyGzCsvChunker {
 impl PyGzCsvChunker {
     #[new]
     #[pyo3(signature = (path, buffer_size, line_change_symbol))]
-    fn new<'py>(path: &str, buffer_size: usize, line_change_symbol: Vec<u8>) -> PyResult<Self> {
-        let file =
-            File::open(path).map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
-
+    fn new(path: &str, buffer_size: usize, line_change_symbol: &str) -> PyResult<Self> {
+        let file = File::open(path).map_err(PyErr::from)?;
         let file_reader = std::io::BufReader::with_capacity(buffer_size, file);
-
         let gz: GzDecoder<std::io::BufReader<File>> = GzDecoder::new(file_reader);
-        let b = line_change_symbol[0]; // by default bytes are translated to Vec<u8>
         Ok(Self {
-            _chunker: CsvChunker::new(b),
+            _chunker: CsvChunker::new(line_change_symbol),
             _reader: gz,
-            _chunk_buffer: vec![0u8; buffer_size + buffer_size / 4],
+            _chunk_buffer: vec![0u8; buffer_size + 50_000],
             started: false,
             finished: false,
             n_reads: 0,
@@ -100,7 +96,8 @@ impl PyGzCsvChunker {
                         self._chunk_buffer.clear();
                         Ok(PyBytes::new(py, &[]))
                     }
-                    ReaderErr::IoError(s) => Err(PyErr::new::<PyValueError, _>(s)),
+                    ReaderErr::IoError(ioe) => Err(PyErr::from(ioe)),
+                    ReaderErr::Other(s) => Err(PyErr::new::<PyValueError, _>(s)),
                 },
             }
         }
@@ -130,19 +127,16 @@ impl PyS3GzCsvChunker {
             .with_bucket_name(bucket)
             .with_region(region)
             .build()
-            .map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
+            .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
         let _path = Path::from(path);
         let data_future = store.get(&_path);
 
         let data_result = data_future
             .await
-            .map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
+            .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
         let meta = data_result.meta;
-        // let bufread = object_store::buffered::BufReader::with_capacity(Arc::new(store), &meta, buffer_size);
-        // let pinned_reader = Box::pin(bufread);
-
         Ok(object_store::buffered::BufReader::with_capacity(
             Arc::new(store),
             &meta,
@@ -155,21 +149,20 @@ impl PyS3GzCsvChunker {
 impl PyS3GzCsvChunker {
     #[new]
     #[pyo3(signature = (bucket, path, region, buffer_size, line_change_symbol))]
-    fn new<'py>(
+    fn new(
         bucket: &str,
         path: &str,
         region: &str,
         buffer_size: usize,
-        line_change_symbol: Vec<u8>,
+        line_change_symbol: &str,
     ) -> PyResult<Self> {
-        let rt = Runtime::new().map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
+        let rt = Runtime::new().map_err(PyErr::from)?;
         let reader = rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))?;
-        let b = line_change_symbol[0]; // by default bytes are translated to Vec<u8>
         let gz = GzipDecoder::new(reader);
         Ok(Self {
-            _chunker: CsvChunker::new(b),
+            _chunker: CsvChunker::new(line_change_symbol),
             _reader: Mutex::new(gz),
-            _chunk_buffer: vec![0u8; buffer_size + buffer_size / 4],
+            _chunk_buffer: vec![0u8; buffer_size + 50_000],
             _async_rt: rt,
             started: false,
             finished: false,
@@ -206,7 +199,7 @@ impl PyS3GzCsvChunker {
             let reader = self
                 ._reader
                 .get_mut()
-                .map_err(|e| PyErr::new::<PyFileExistsError, _>(e.to_string()))?;
+                .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
             let read_result = self._async_rt.block_on(
                 self._chunker
@@ -225,7 +218,8 @@ impl PyS3GzCsvChunker {
                         self._chunk_buffer.clear();
                         Ok(PyBytes::new(py, &[]))
                     }
-                    ReaderErr::IoError(s) => Err(PyErr::new::<PyValueError, _>(s)),
+                    ReaderErr::IoError(ioe) => Err(PyErr::from(ioe)),
+                    ReaderErr::Other(s) => Err(PyErr::new::<PyValueError, _>(s)),
                 },
             }
         }

@@ -14,7 +14,7 @@ from .utils import (
     CompressionMethod,
     get_compression_method_local
 )
-from gzcsv._gzcsv import (
+from gzeus._gzeus import (
     PyGzCsvChunker,
     PyS3GzCsvChunker
 )
@@ -42,16 +42,16 @@ class Chunker:
         else:
             self.buffer_size = buffer_size
 
-        symbol = line_change_symbol.encode()
-        if len(symbol) != 1:
+        if len(line_change_symbol) != 1:
             raise ValueError("The line change symbol must be one byte only.")
 
-        self.symbol:bytes = symbol
+        self.symbol:str = line_change_symbol
         self.compression:CompressionMethod = CompressionMethod.UNK
         # Type of _reader is Option[ChunkReader], where ChunkReader represents types implementing the following interface
         # 1. is_finished(self) -> bool
         # 2. read_chunk(self) -> bytes
         # 3. n_reads(self) -> usize
+        # 4. bytes_decompressed(self) -> int
         self._reader = None
 
     def _check_reader(self):
@@ -94,11 +94,10 @@ class Chunker:
             The line change symbol for the underlying text file. The most common one is '\n'.
         """
 
-        symbol = line_change_symbol.encode()
-        if len(symbol) != 1:
+        if len(line_change_symbol) != 1:
             raise ValueError("The line change symbol must be one byte only.")
 
-        self.symbol:bytes = symbol
+        self.symbol = line_change_symbol
         return self
 
     def with_local_file(self, file_path: str | Path) -> Self:
@@ -128,23 +127,32 @@ class Chunker:
         """
         Return the number of chunks read.
         """
+        if self._reader is None:
+            return 0
         return self._reader.n_reads()
 
-    def is_finished() -> bool:
+    def is_finished(self) -> bool:
         """
         Whether the current reader has finished reading.
         """
         if self._reader is None:
             return False
-        else: 
-            return self._reader.is_finished()
+        return self._reader.is_finished()
+
+    def bytes_decompressed(self) -> int:
+        """
+        Returns the number of decompressed bytes so far by the reader.
+        """
+        if self._reader is None:
+            return 0
+        return self._reader.bytes_decompressed()
 
     def show_status(self):
         """
         Prints a message about the status of the reader.
         """
         if self._reader is None:
-            print("Target file is not set yet. Please run `set_file` first.")
+            print("Target file is not set yet. Please run `with_*_file` first.")
         else:
             if self._reader.is_finished():
                 print(f"Read process has finished. Total number of chunks read: {self._reader.n_reads()}.")

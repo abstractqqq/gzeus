@@ -1,21 +1,59 @@
-# Name not decided yet
+# GZeus 
+
+is a package that chunks gzipped text files lightening fast. 
 
 ## What is this package for?
 
 This package is designed for workloads that 
 
-(1) Need to read data from a very large .csv file or a .csv.gz file
-(2) Only some of the data, usually less than 50% of the original, is actually needed
+1. Need to read data from a very large .csv.gz file
 
-This package provides a Chunker class that will read the csv by chunks of given size (in # of bytes). Each chunk will represent a proper csv file (if input file is a proper csv file). Only the first chunk will have header info, if headers are present. The user is supposed to use this to "stream" the csv data chunk by chunk and perform whatever processes the user wants. 
+2. Only some of the data, usually less than 50% of the original, is actually needed
 
-If you intend to filter on the data and return a dataframe, Polars's `scan_csv` is enough for the non-compressed case. For the compressed case, the story is different. Although Polars can also do a lazy .csv.gz scan, it will still try to decompress the entire file into memory first, which is infeasible in many cases. This package will provide an easy way to decompress and output the valid csv data stream.
+This package provides a Chunker class that will read gz compressed text file by chunks. In the case of csv files, each chunk will represent a proper decompressed csv file and only the first chunk will have header info, if headers are present. The Chunker will produce these chunks in a streaming fashion, thus minimizing memory load.
 
-**Since csv files are just text files, this package can potentially be used to stream large text files as well.**
+**This package can potentially be used to stream large gzipped text files as well. But is not capable of semantic chunking, which is often needed for text processing for LLMs. This package only chunks by identifying the last needle (line change character) in the haystack (text string) in the current buffer.**
 
 ## Assumptions
 
-The separator provided by the user only shows up in the underlying text file as separators.
+The line_change_symbol provided by the user only shows up in the underlying text file as line change symbol.
+
+## We get decompressed bytes by chunks, then what? 
+
+Most of the times, we only need to extract partial data from large .csv.gz files. This is where the combination of GZeus
+and Polars really shines. 
+
+```python
+from gzeus import Chunker
+import polars as pl
+
+# Turn portion of the produced bytes into a DataFrame. Only possible with Polars, 
+# or dataframe packages with "lazy" capabilities. Lazy read + filters ensure 
+# only necessary bytes are copied into our dataframe 
+def bytes_into_df(df:pl.LazyFrame) -> pl.DataFrame:
+    return df.filter(
+        pl.col("City_Category") == 'A'
+    ).select("City_Category", "Primary_Bank_Type", "Source").collect()
+
+ck = (
+    Chunker(buffer_size=1_000_000, line_change_symbol='\n')
+    .with_local_file("../data/test.csv.gz")
+)
+df_temp = pl.scan_csv(ck.read_one())
+
+schema = df_temp.collect_schema() # Infer schema from first chunk
+dfs = [bytes_into_df(df_temp)]
+
+dfs.extend(
+    bytes_into_df(
+        pl.scan_csv(byte_chunk, has_header=False, schema=schema)
+    )
+    for byte_chunk in ck.chunks()
+)
+
+df = pl.concat(dfs)
+df.head()
+```
 
 ## Other Projects to Check Out
 

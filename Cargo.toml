@@ -1,15 +1,15 @@
 [package]
-name = "gzcsv"
+name = "gzeus"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "gzcsv"
+name = "gzeus"
 crate-type = ["cdylib"]
 
 [dependencies]
 flate2 = "1.0.34"
-memchr = "2.7.4"
+memchr = {version = "2.7.4", features = ["std"]}
 
 # Python Interop
 pyo3 = { version = "0.23", features = ["abi3-py39", "experimental-async"]}
