@@ -10,7 +10,7 @@ use object_store::aws::AmazonS3Builder;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use std::sync::{Arc, Mutex};
-use tokio::{io::AsyncReadExt, runtime::Runtime};
+use tokio::{io::{AsyncBufRead, AsyncReadExt}, runtime::Runtime};
 
 // There is no way to use a generic trait in a struct that we wish to use as a pyclass later.
 // Therefore, code here is quite redundant.
@@ -84,7 +84,7 @@ impl PyGzCsvChunker {
                 self.finished = true;
                 // Safety:
                 // Vec is contiguous, all u8s, and n is <= len()
-                // PyBytes is also immutable
+                // PyBytes is also immutable, and is only used for reading
                 Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
             }
             Err(ioe) => Err(PyErr::from(ioe)),
@@ -109,7 +109,7 @@ impl PyGzCsvChunker {
                     self.bytes_decompressed += n;
                     // Safety:
                     // Vec is contiguous, all u8s, and n is <= len()
-                    // PyBytes is also immutable
+                    // PyBytes is also immutable, and is only used for reading
                     Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
                 }
                 Err(e) => match e {
@@ -152,9 +152,9 @@ impl PyS3GzCsvChunker {
             .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
         let _path = Path::from(path);
-        let data_future = store.get(&_path);
 
-        let data_result = data_future
+        let data_result = store
+            .get(&_path)
             .await
             .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
@@ -181,6 +181,7 @@ impl PyS3GzCsvChunker {
         let rt = Runtime::new().map_err(PyErr::from)?;
         let reader = rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))?;
         let gz = GzipDecoder::new(reader);
+        // as Box<dyn AsyncBufRead>
         Ok(Self {
             _chunker: CsvChunker::new(line_change_symbol),
             _reader: Mutex::new(gz),
@@ -230,7 +231,7 @@ impl PyS3GzCsvChunker {
                 self.finished = true;
                 // Safety:
                 // Vec is contiguous, all u8s, and n is <= len()
-                // PyBytes is also immutable
+                // PyBytes is also immutable, and is only used for reading
                 Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
             }
             Err(ioe) => Err(PyErr::from(ioe)),
@@ -262,7 +263,7 @@ impl PyS3GzCsvChunker {
                     self.bytes_decompressed += n;
                     // Safety:
                     // Vec is contiguous, all u8s, and n is <= len()
-                    // PyBytes is also immutable
+                    // PyBytes is also immutable, and is only used for reading
                     Ok(unsafe { PyBytes::from_ptr(py, self._chunk_buffer.as_ptr(), n) })
                 }
                 Err(e) => match e {
