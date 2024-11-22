@@ -179,12 +179,17 @@ impl PyS3GzCsvChunker {
         line_change_symbol: &str,
     ) -> PyResult<Self> {
         let rt = Runtime::new().map_err(PyErr::from)?;
-        let reader = rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))?;
-        let gz = GzipDecoder::new(reader);
-        // as Box<dyn AsyncBufRead>
+
+        let reader = tokio::task::block_in_place(
+            || {
+                rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))
+                .map(|bufreader| Mutex::new(GzipDecoder::new(bufreader))) 
+            }
+        )?;
+
         Ok(Self {
             _chunker: CsvChunker::new(line_change_symbol),
-            _reader: Mutex::new(gz),
+            _reader: reader,
             _chunk_buffer: vec![0u8; buffer_size + 50_000],
             _async_rt: rt,
             started: false,
