@@ -375,6 +375,7 @@ dependencies = [
  "flate2",
  "memchr",
  "object_store",
+ "once_cell",
  "pyo3",
  "tokio",
 ]
@@ -846,6 +847,7 @@ dependencies = [
  "rand",
  "reqwest",
  "ring",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "snafu",

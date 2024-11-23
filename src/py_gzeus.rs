@@ -6,11 +6,14 @@ use pyo3::types::PyBytes;
 use std::{fs::File, io::Read};
 
 use async_compression::tokio::bufread::GzipDecoder;
-use object_store::aws::AmazonS3Builder;
 use object_store::path::Path;
 use object_store::ObjectStore;
+use object_store::{
+    aws::AmazonS3Builder, azure::MicrosoftAzureBuilder, gcp::GoogleCloudStorageBuilder,
+};
+use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex};
-use tokio::{io::{AsyncBufRead, AsyncReadExt}, runtime::Runtime};
+use tokio::{io::AsyncReadExt, runtime::Runtime};
 
 // There is no way to use a generic trait in a struct that we wish to use as a pyclass later.
 // Therefore, code here is quite redundant.
@@ -27,7 +30,7 @@ use tokio::{io::{AsyncBufRead, AsyncReadExt}, runtime::Runtime};
 // Then use the ctype library to read the bytes (from the NumPy array) which should not copy.
 
 #[pyclass]
-pub struct PyGzCsvChunker {
+pub struct PyGzChunker {
     _chunker: CsvChunker,
     _reader: GzDecoder<std::io::BufReader<File>>,
     _chunk_buffer: Vec<u8>,
@@ -38,7 +41,7 @@ pub struct PyGzCsvChunker {
 }
 
 #[pymethods]
-impl PyGzCsvChunker {
+impl PyGzChunker {
     #[new]
     #[pyo3(signature = (path, buffer_size, line_change_symbol))]
     fn new(path: &str, buffer_size: usize, line_change_symbol: &str) -> PyResult<Self> {
@@ -127,71 +130,104 @@ impl PyGzCsvChunker {
 }
 
 #[pyclass]
-pub struct PyS3GzCsvChunker {
+pub struct PyCloudGzChunker {
     _chunker: CsvChunker,
     _reader: Mutex<GzipDecoder<object_store::buffered::BufReader>>,
     _chunk_buffer: Vec<u8>,
-    _async_rt: Runtime,
     started: bool,
     finished: bool,
     n_reads: usize,
     bytes_decompressed: usize,
 }
 
-impl PyS3GzCsvChunker {
-    async fn get_s3_bufreader(
+// Todo: add config options
+
+impl PyCloudGzChunker {
+    async fn get_bufreader(
         bucket: &str,
-        path: &str,
-        region: &str,
+        path: &Path,
+        provider: &str,
+        region: &str, // only for s3 rn. Need more specialized configs for each later.
         buffer_size: usize,
     ) -> PyResult<object_store::buffered::BufReader> {
+        let store = match provider.to_lowercase().as_ref() {
+            "aws" => Self::get_s3_object_store(bucket, region),
+            "gcp" => Self::get_gcs_object_store(bucket),
+            "azure" => Self::get_azure_object_store(bucket),
+            _ => Err(PyErr::new::<PyValueError, _>("Unknown clound provider.")),
+        }?;
+
+        let data_result = store
+            .get(path)
+            .await
+            .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
+
+        let meta = data_result.meta;
+        Ok(object_store::buffered::BufReader::with_capacity(
+            store,
+            &meta,
+            buffer_size,
+        ))
+    }
+
+    fn get_s3_object_store(bucket: &str, region: &str) -> PyResult<Arc<dyn ObjectStore>> {
         let store = AmazonS3Builder::from_env()
             .with_bucket_name(bucket)
             .with_region(region)
             .build()
             .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
-        let _path = Path::from(path);
+        Ok(Arc::new(store))
+    }
 
-        let data_result = store
-            .get(&_path)
-            .await
+    fn get_gcs_object_store(bucket: &str) -> PyResult<Arc<dyn ObjectStore>> {
+        let store = GoogleCloudStorageBuilder::from_env()
+            .with_bucket_name(bucket)
+            .build()
             .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
-        let meta = data_result.meta;
-        Ok(object_store::buffered::BufReader::with_capacity(
-            Arc::new(store),
-            &meta,
-            buffer_size,
-        ))
+        Ok(Arc::new(store))
+    }
+
+    fn get_azure_object_store(container: &str) -> PyResult<Arc<dyn ObjectStore>> {
+        let store = MicrosoftAzureBuilder::from_env()
+            .with_container_name(container)
+            .build()
+            .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
+
+        Ok(Arc::new(store))
     }
 }
 
 #[pymethods]
-impl PyS3GzCsvChunker {
+impl PyCloudGzChunker {
     #[new]
-    #[pyo3(signature = (bucket, path, region, buffer_size, line_change_symbol))]
+    #[pyo3(signature = (bucket, path, provider, region, buffer_size, line_change_symbol))]
     fn new(
         bucket: &str,
         path: &str,
+        provider: &str,
         region: &str,
         buffer_size: usize,
         line_change_symbol: &str,
     ) -> PyResult<Self> {
-        let rt = Runtime::new().map_err(PyErr::from)?;
-
-        let reader = tokio::task::block_in_place(
-            || {
-                rt.block_on(Self::get_s3_bufreader(bucket, path, region, buffer_size))
-                .map(|bufreader| Mutex::new(GzipDecoder::new(bufreader))) 
-            }
-        )?;
+        let path = Path::from(path);
+        let reader = tokio::task::block_in_place(|| {
+            RUNTIME
+                .block_on(Self::get_bufreader(
+                    bucket,
+                    &path,
+                    provider,
+                    region,
+                    buffer_size,
+                ))
+                .map(|br| Mutex::new(GzipDecoder::new(br)))
+        })?;
 
         Ok(Self {
             _chunker: CsvChunker::new(line_change_symbol),
             _reader: reader,
             _chunk_buffer: vec![0u8; buffer_size + 50_000],
-            _async_rt: rt,
             started: false,
             finished: false,
             n_reads: 0,
@@ -225,9 +261,7 @@ impl PyS3GzCsvChunker {
             .get_mut()
             .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
-        let read_result = self
-            ._async_rt
-            .block_on(async { reader.read(&mut self._chunk_buffer).await });
+        let read_result = RUNTIME.block_on(async { reader.read(&mut self._chunk_buffer).await });
 
         match read_result {
             Ok(n) => {
@@ -257,7 +291,7 @@ impl PyS3GzCsvChunker {
                 .get_mut()
                 .map_err(|e| PyErr::new::<PyValueError, _>(e.to_string()))?;
 
-            let read_result = self._async_rt.block_on(
+            let read_result = RUNTIME.block_on(
                 self._chunker
                     .async_read_and_write(reader, &mut self._chunk_buffer),
             );
@@ -284,3 +318,6 @@ impl PyS3GzCsvChunker {
         }
     }
 }
+
+// Not sure when this unwrap will fail
+static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());

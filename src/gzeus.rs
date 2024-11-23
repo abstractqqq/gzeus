@@ -81,7 +81,7 @@ impl CsvChunker {
         let (leftover_size, clean_buffer) = self.push_leftover_to_buffer(write_buffer);
         let read_result = reader.read(clean_buffer);
         self.process_read_result(read_result, clean_buffer)
-            .map(|n| n + leftover_size)
+            .map(|n| n + leftover_size) // n + leftover_size = actual valid index range: 0..this value
     }
 
     // Will be executed in a tokio runtime and will block
