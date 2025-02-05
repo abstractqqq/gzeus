@@ -16,7 +16,7 @@ from .utils import (
 )
 from gzeus._gzeus import (
     PyGzChunker,
-    PyCloudGzChunker
+    # PyCloudGzChunker
 )
 
 __all__ = ["Chunker"]
@@ -32,7 +32,8 @@ class Chunker:
         buffer_size
             Buffer size in bytes. 1_000_000 is 1MB. A min of 1MB is used for this value.
             Note: in fact, the actual buffer that will get allocated has size slightly
-            greater than the given value.
+            greater than the given value. Actual chunk size will vary depending on the compression, 
+            but this buffer will be used repeatedly in the process, saving overall memory.
         line_change_symbol
             The symbol for "line change". The last such symbol indicates the end of the 
             chunk. And the rest of the bytes will be appended to the front of the next
@@ -44,7 +45,7 @@ class Chunker:
         else:
             self.buffer_size = buffer_size
 
-        if len(line_change_symbol) != 1:
+        if len(line_change_symbol.encode('utf-8')) != 1:
             raise ValueError("The line change symbol must be one byte only.")
 
         self.symbol:str = line_change_symbol
@@ -134,46 +135,49 @@ class Chunker:
         if self.compression == CompressionMethod.GZ:
             self._reader = PyGzChunker(str(file_path), self.buffer_size, self.symbol)
         else:
-            raise ValueError("The underlying file is not compressed, and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`.")
+            raise ValueError(
+                "The underlying file is not compressed, "
+                "and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`."
+            )
 
         self._description = f"Target file is a local file at path: {file_path}"
         return self
 
-    def with_s3_file(self, bucket: str, path: str, region:str) -> Self:
-        """
-        Set the file target to a file from aws s3. The file must be gz compressed for the subsequent read to work.
-        """
-        self._reader = PyCloudGzChunker(str(bucket), str(path), "aws", region, self.buffer_size, self.symbol)
-        self._description = f"Target file is a S3 file in bucket: {bucket}, path: {path}, region: {region}"
-        return self
+    # def with_s3_file(self, bucket: str, path: str, region:str) -> Self:
+    #     """
+    #     Set the file target to a file from aws s3. The file must be gz compressed for the subsequent read to work.
+    #     """
+    #     self._reader = PyCloudGzChunker(str(bucket), str(path), "aws", region, self.buffer_size, self.symbol)
+    #     self._description = f"Target file is a S3 file in bucket: {bucket}, path: {path}, region: {region}"
+    #     return self
 
-    def with_gcs_file(self, bucket: str, path: str) -> Self:
-        """
-        Set the file target to a file from google cloud storage. The file must be gz compressed for the subsequent 
-        read to work.
-        """
-        import warnings
-        warnings.warn(
-            "This code is untested.",
-            stacklevel=2
-        )
+    # def with_gcs_file(self, bucket: str, path: str) -> Self:
+    #     """
+    #     Set the file target to a file from google cloud storage. The file must be gz compressed for the subsequent 
+    #     read to work.
+    #     """
+    #     import warnings
+    #     warnings.warn(
+    #         "This code is untested.",
+    #         stacklevel=2
+    #     )
 
-        self._reader = PyCloudGzChunker(str(bucket), str(path), "gcp", "", self.buffer_size, self.symbol)
-        self._description = f"Target file is a Google Cloud Storage file in bucket: {bucket}, path: {path}"
-        return self
+    #     self._reader = PyCloudGzChunker(str(bucket), str(path), "gcp", "", self.buffer_size, self.symbol)
+    #     self._description = f"Target file is a Google Cloud Storage file in bucket: {bucket}, path: {path}"
+    #     return self
 
-    def with_azure_file(self, container: str, path: str) -> Self:
-        """
-        Set the file target to a file from azure storage. The file must be gz compressed for the subsequent read to work.
-        """
-        import warnings
-        warnings.warn(
-            "This code is untested.",
-            stacklevel=2
-        )
-        self._reader = PyCloudGzChunker(str(container), str(path), "azure", "", self.buffer_size, self.symbol)
-        self._description = f"Target file is a Azure Storage file in container: {container}, path: {path}"
-        return self
+    # def with_azure_file(self, container: str, path: str) -> Self:
+    #     """
+    #     Set the file target to a file from azure storage. The file must be gz compressed for the subsequent read to work.
+    #     """
+    #     import warnings
+    #     warnings.warn(
+    #         "This code is untested.",
+    #         stacklevel=2
+    #     )
+    #     self._reader = PyCloudGzChunker(str(container), str(path), "azure", "", self.buffer_size, self.symbol)
+    #     self._description = f"Target file is a Azure Storage file in container: {container}, path: {path}"
+    #     return self
 
     def n_reads(self) -> int:
         """

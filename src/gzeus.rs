@@ -1,11 +1,11 @@
 use memchr::{memmem, memmem::FinderRev};
-use std::io::Read;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use std::io::{Error, Read};
+// use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(Debug)]
 pub enum ReaderErr {
     Finished,
-    IoError(std::io::Error),
+    IoError(Error),
     Other(String),
 }
 
@@ -24,8 +24,7 @@ impl CsvChunker {
 
     /// Pushes the leftover to the write_buffer and splits the write_buffer into 2 (left and right)
     /// Left is the part with the leftover. Right is the part that should be written by the reader.
-    /// It will clear the leftover, which will be repopulated when we process read result.
-    /// Returns (size of leftover pushed, the right buffer)
+    /// After that, clears the leftover, and returns (size of leftover pushed, the right buffer)
     #[inline]
     pub fn push_leftover_to_buffer<'a>(&mut self, buffer: &'a mut [u8]) -> (usize, &'a mut [u8]) {
         let (left, right) = buffer.split_at_mut(self.leftover_chunk.len());
@@ -36,9 +35,9 @@ impl CsvChunker {
 
     /// Process the read result. If reader succeeds and returns an int n,
     /// We find the last position of a line change symbol in the range 0..n by using memchr to search
-    /// the bytes. The last index will be = last position of a line change + 1. The last_index..n
+    /// the bytes. The last index will be = last position of the line change + 1. The last_index..n
     /// part will be the new leftover. Finally, return the number of bytes in the buffer we actually
-    /// need. (0..last_index for most of the cases.)
+    /// populated. (0..last_index for most of the cases.)
     #[inline]
     pub fn process_read_result(
         &mut self,
@@ -83,15 +82,15 @@ impl CsvChunker {
             .map(|n| n + leftover_size) // n + leftover_size = actual valid index range: 0..this value
     }
 
-    // Will be executed in a tokio runtime and will block
-    pub async fn async_read_and_write<R: AsyncRead + std::marker::Unpin>(
-        &mut self,
-        reader: &mut R,
-        write_buffer: &mut [u8],
-    ) -> Result<usize, ReaderErr> {
-        let (leftover_size, clean_buffer) = self.push_leftover_to_buffer(write_buffer);
-        let read_result = reader.read(clean_buffer).await;
-        self.process_read_result(read_result, clean_buffer)
-            .map(|n| n + leftover_size)
-    }
+    // // Will be executed in a tokio runtime and will block
+    // pub async fn async_read_and_write<R: AsyncRead + std::marker::Unpin>(
+    //     &mut self,
+    //     reader: &mut R,
+    //     write_buffer: &mut [u8],
+    // ) -> Result<usize, ReaderErr> {
+    //     let (leftover_size, clean_buffer) = self.push_leftover_to_buffer(write_buffer);
+    //     let read_result = reader.read(clean_buffer).await;
+    //     self.process_read_result(read_result, clean_buffer)
+    //         .map(|n| n + leftover_size)
+    // }
 }

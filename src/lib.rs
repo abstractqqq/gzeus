@@ -10,7 +10,7 @@ use pyo3::{
 #[pymodule]
 #[pyo3(name = "_gzeus")]
 fn gzcsv(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // m.add_class::<py_gzeus::PyCloudGzChunker>()?;
     m.add_class::<py_gzeus::PyGzChunker>()?;
-    m.add_class::<py_gzeus::PyCloudGzChunker>()?;
     Ok(())
 }

@@ -23,11 +23,9 @@ def _get_compression_method(b: bytes | str) -> CompressionMethod:
         else:
             return CompressionMethod.UNK
 
-
 def get_compression_method_local(path: str | Path) -> CompressionMethod:
-    file = open(path, "rb")
-    ctype = _get_compression_method(file.read(2))
-    file.close()
-    return ctype
+    return _get_compression_method(
+        open(path, "rb").read(2) # first two bytes
+    )
     
 
