@@ -16,14 +16,13 @@ from .utils import (
 )
 from gzeus._gzeus import (
     PyGzChunker,
-    # PyCloudGzChunker
 )
 
 __all__ = ["Chunker"]
 
 class Chunker:
     
-    def __init__(self, buffer_size:int = 1_000_000, line_change_symbol:str = "\n"):
+    def __init__(self, buffer_size:int = 1_000_000, new_line_symbol:str = "\n"):
         """
         Creates a Chunker.
 
@@ -34,21 +33,17 @@ class Chunker:
             Note: in fact, the actual buffer that will get allocated has size slightly
             greater than the given value. Actual chunk size will vary depending on the compression, 
             but this buffer will be used repeatedly in the process, saving overall memory.
-        line_change_symbol
-            The symbol for "line change". The last such symbol indicates the end of the 
+        new_line_symbol
+            The symbol for new line. The last such symbol indicates the end of the 
             chunk. And the rest of the bytes will be appended to the front of the next
             chunk of bytes read.
         """    
 
-        if buffer_size <= 1_000_000:
-            self.buffer_size = 1_000_000
-        else:
-            self.buffer_size = buffer_size
+        self.buffer_size = max(1_000_000, buffer_size)
+        if len(new_line_symbol.encode('utf-8')) != 1:
+            raise ValueError("The new line symbol must be one byte only.")
 
-        if len(line_change_symbol.encode('utf-8')) != 1:
-            raise ValueError("The line change symbol must be one byte only.")
-
-        self.symbol:str = line_change_symbol
+        self.symbol:str = new_line_symbol
         self.compression:CompressionMethod = CompressionMethod.UNK
         # Type of _reader is Option[ChunkReader], where ChunkReader represents types implementing the following interface
         # 1. is_finished(self) -> bool
@@ -67,7 +62,7 @@ class Chunker:
         else:
             desc += (
                 f"Allocated internal buffer size: {self.buffer_size} bytes\n"
-                f"Line change symbol: {repr(self.symbol)}\n"
+                f"New line symbol: {repr(self.symbol)}\n"
                 f"{self._description}\n"
                 "Read Status:\n"
                 f"- # reads: {self._reader.n_reads()}\n"
@@ -86,7 +81,7 @@ class Chunker:
             raise ValueError("Target file is not set yet. Please run `with_*_file` first.")
 
         if self._reader.is_finished():
-            raise ValueError("The reader has finished reading. To being a new read, please run `set_file` again.")
+            raise ValueError("The reader has finished reading. To begin a new read, please run ``with_*_file` again.")
 
     def with_buffer_size(self, buffer_size:int) -> Self:
         """
@@ -106,20 +101,20 @@ class Chunker:
 
         return self
 
-    def with_line_change(self, line_change_symbol:str) -> Self:
+    def with_new_line(self, new_line_symbol:str) -> Self:
         """
-        Resets the line change byte symbol.
+        Resets the new line symbol.
 
         Parameters
         ----------
-        line_change_symbol
-            The line change symbol for the underlying text file. The most common one is '\n'.
+        new_line_symbol
+            The new line symbol for the underlying text file. The most common one is '\n'.
         """
 
-        if len(line_change_symbol) != 1:
-            raise ValueError("The line change symbol must be one byte only.")
+        if len(new_line_symbol) != 1:
+            raise ValueError("The new line symbol must be one byte only.")
 
-        self.symbol = line_change_symbol
+        self.symbol = new_line_symbol
         return self
 
     def with_local_file(self, file_path: str | Path) -> Self:
@@ -136,48 +131,11 @@ class Chunker:
             self._reader = PyGzChunker(str(file_path), self.buffer_size, self.symbol)
         else:
             raise ValueError(
-                "The underlying file is not compressed, "
-                "and you should probably use a Polars lazy scan `pl.scan_csv` or `pl.read_csv_batched`."
+                "The underlying file is not compressed or cannot be properly identified as a .gz file."
             )
 
         self._description = f"Target file is a local file at path: {file_path}"
         return self
-
-    # def with_s3_file(self, bucket: str, path: str, region:str) -> Self:
-    #     """
-    #     Set the file target to a file from aws s3. The file must be gz compressed for the subsequent read to work.
-    #     """
-    #     self._reader = PyCloudGzChunker(str(bucket), str(path), "aws", region, self.buffer_size, self.symbol)
-    #     self._description = f"Target file is a S3 file in bucket: {bucket}, path: {path}, region: {region}"
-    #     return self
-
-    # def with_gcs_file(self, bucket: str, path: str) -> Self:
-    #     """
-    #     Set the file target to a file from google cloud storage. The file must be gz compressed for the subsequent 
-    #     read to work.
-    #     """
-    #     import warnings
-    #     warnings.warn(
-    #         "This code is untested.",
-    #         stacklevel=2
-    #     )
-
-    #     self._reader = PyCloudGzChunker(str(bucket), str(path), "gcp", "", self.buffer_size, self.symbol)
-    #     self._description = f"Target file is a Google Cloud Storage file in bucket: {bucket}, path: {path}"
-    #     return self
-
-    # def with_azure_file(self, container: str, path: str) -> Self:
-    #     """
-    #     Set the file target to a file from azure storage. The file must be gz compressed for the subsequent read to work.
-    #     """
-    #     import warnings
-    #     warnings.warn(
-    #         "This code is untested.",
-    #         stacklevel=2
-    #     )
-    #     self._reader = PyCloudGzChunker(str(container), str(path), "azure", "", self.buffer_size, self.symbol)
-    #     self._description = f"Target file is a Azure Storage file in container: {container}, path: {path}"
-    #     return self
 
     def n_reads(self) -> int:
         """
@@ -202,21 +160,6 @@ class Chunker:
         if self._reader is None:
             return 0
         return self._reader.bytes_decompressed()
-
-    def show_status(self):
-        """
-        Prints a message about the status of the reader.
-        """
-        if self._reader is None:
-            print("Target file is not set yet. Please run `with_*_file` first.")
-        else:
-            if self._reader.is_finished():
-                print(f"Read process has finished. Total number of chunks read: {self._reader.n_reads()}.")
-            else:
-                if self._reader.has_started():
-                    print(f"Read process has started. {self._reader.n_reads()}-chunks have been read.\n")
-                else:
-                    print(f"Read process has not been started.")
 
     def read_full(self) -> bytes:
         """

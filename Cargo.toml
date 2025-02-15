@@ -8,7 +8,7 @@ name = "gzeus"
 crate-type = ["cdylib"]
 
 [dependencies]
-flate2 = "1.0.34"
+flate2 = {version = "1.0.35", default-features = false, features = ["zlib-ng"]} # features = ["zlib-rs", "zlib-ng"]
 memchr = {version = "2.7.4", features = ["std"]}
 
 # Python Interop
