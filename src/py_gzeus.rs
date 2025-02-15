@@ -5,30 +5,6 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::{fs::File, io::Read};
 
-// use std::sync::{Arc, Mutex};
-// use async_compression::tokio::bufread::GzipDecoder;
-// use object_store::path::Path;
-// use object_store::ObjectStore;
-// use object_store::{
-//     aws::AmazonS3Builder, azure::MicrosoftAzureBuilder, gcp::GoogleCloudStorageBuilder,
-// };
-// use once_cell::sync::Lazy;
-// use tokio::{io::AsyncReadExt, runtime::Runtime};
-
-// There is no way to use a generic trait in a struct that we wish to use as a pyclass later.
-// Therefore, code here is quite redundant.
-// The exact reason is that the state of the reader needs to be preserved. But we cannot
-// use (trait + monomorphization) to implement this struct.
-// The Python classes here are single-purpose only, and will be managed by a higher level
-// class in Python for ease of use.
-// Strictly speaking, if data is a slice, and the creation of dataframe copies, then data doesn't
-// need to be copied when being passed to Python. However, there is no way to pass a slice (&[u8]) to Python
-// and using PyBytes incurs an additional copy. I might need to research more into this.
-
-// There might be a workaround: pass in a NumPy uint8 array, which is allocated in Python,
-// and mutate it (maybe unsafely), return the array which shouldn't result in any copy.
-// Then use the ctype library to read the bytes (from the NumPy array) which should not copy.
-
 #[pyclass]
 pub struct PyGzChunker {
     _chunker: CsvChunker,
@@ -43,13 +19,13 @@ pub struct PyGzChunker {
 #[pymethods]
 impl PyGzChunker {
     #[new]
-    #[pyo3(signature = (path, buffer_size, line_change_symbol))]
-    fn new(path: &str, buffer_size: usize, line_change_symbol: &str) -> PyResult<Self> {
+    #[pyo3(signature = (path, buffer_size, new_line_symbol))]
+    fn new(path: &str, buffer_size: usize, new_line_symbol: &str) -> PyResult<Self> {
         let file = File::open(path).map_err(PyErr::from)?;
         let file_reader = std::io::BufReader::with_capacity(buffer_size, file);
         let gz: GzDecoder<std::io::BufReader<File>> = GzDecoder::new(file_reader);
         Ok(Self {
-            _chunker: CsvChunker::new(line_change_symbol),
+            _chunker: CsvChunker::new(new_line_symbol),
             _reader: gz,
             _chunk_buffer: vec![0u8; buffer_size + 50_000],
             started: false,
@@ -202,14 +178,14 @@ impl PyGzChunker {
 // #[pymethods]
 // impl PyCloudGzChunker {
 //     #[new]
-//     #[pyo3(signature = (bucket, path, provider, region, buffer_size, line_change_symbol))]
+//     #[pyo3(signature = (bucket, path, provider, region, buffer_size, new_line_symbol))]
 //     fn new(
 //         bucket: &str,
 //         path: &str,
 //         provider: &str,
 //         region: &str,
 //         buffer_size: usize,
-//         line_change_symbol: &str,
+//         new_line_symbol: &str,
 //     ) -> PyResult<Self> {
 //         let path = Path::from(path);
 //         let reader = tokio::task::block_in_place(|| {
@@ -225,7 +201,7 @@ impl PyGzChunker {
 //         })?;
 
 //         Ok(Self {
-//             _chunker: CsvChunker::new(line_change_symbol),
+//             _chunker: CsvChunker::new(new_line_symbol),
 //             _reader: reader,
 //             _chunk_buffer: vec![0u8; buffer_size + 50_000],
 //             started: false,

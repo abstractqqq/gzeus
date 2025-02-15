@@ -15,10 +15,10 @@ pub struct CsvChunker {
 }
 
 impl CsvChunker {
-    pub fn new(line_change_symbol: &str) -> Self {
+    pub fn new(new_line_symbol: &str) -> Self {
         Self {
             leftover_chunk: vec![],
-            finder: memmem::FinderRev::new(line_change_symbol).into_owned(),
+            finder: memmem::FinderRev::new(new_line_symbol).into_owned(),
         }
     }
 
