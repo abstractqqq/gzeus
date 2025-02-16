@@ -16,9 +16,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 authors = [{ name = "Tianren Qin", email = "tq9695@gmail.com" }]
-dependencies = ['typing-extensions; python_version <= "3.11"']
+dependencies = [
+    'typing-extensions; python_version <= "3.11"'
+]
 
-keywords = ["compression", "data-science"]
+keywords = ["compression", "data-processing"]
 
 [tool.maturin]
 strip = true
