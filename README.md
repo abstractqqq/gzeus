@@ -22,20 +22,28 @@ The new_line_symbol provided by the user only shows up in the underlying text fi
 
 Most of the times, we only need to extract partial data from large .csv.gz files. This is where the combination of GZeus and Polars really shines. 
 
+If you have Polars installed already:
+```python
+from gzeus import stream_polars_csv_gz
+
+for df_chunk in stream_polars_csv_gz("PATH TO YOUR DATA", func = your_func):
+    # do work with df_chunk
+```
+where your_func should be `pl.LazyFrame -> pl.DataFrame`. If you need more control over the byte chunks, you can structure your code like below:
+
 ```python
 from gzeus import Chunker
 import polars as pl
 
 # Turn portion of the produced bytes into a DataFrame. Only possible with Polars, 
-# or dataframe packages with "lazy" capabilities. Lazy read + filters ensure 
-# only necessary bytes are copied into our dataframe 
+# or dataframe packages with "lazy" capabilities.
 def bytes_into_df(df:pl.LazyFrame) -> pl.DataFrame:
     return df.filter(
         pl.col("City_Category") == 'A'
     ).select("City_Category", "Primary_Bank_Type", "Source").collect()
 
 ck = (
-    Chunker(buffer_size=1_000_000, line_change_symbol='\n')
+    Chunker(buffer_size=1_000_000, new_line_symbol='\n')
     .with_local_file("../data/test.csv.gz")
 )
 
@@ -66,8 +74,32 @@ However, generally speaking, I find that for .csv.gz files:
 2. If you set higher buffer size, GZeus + Polars can take only 1/5 of the time of pandas.read_csv.
 2. Even faster with more workload per chunk (mostly because of Polars).
 
+## Cloud Files
+
+To support "chunk read" from any cloud major provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk each time. To name a few:
+
+1. Increase the number of calls to the storage
+2. Repeatedly opening the file and seeking to the last read position. 
+3. Rate limits issues, especially with VPN. E.g. to get better performance, gzeus needs to read 10MB+ per chunk, but this will increase "packets per second" significantly.
+
+A workaround is to use temp files. For example, for Amazon s3, one can do the following:
+
+```python
+import tempfile
+import boto3
+
+s3 = boto3.client('s3')
+
+tmp = tempfile.NamedTemporaryFile()
+tmp.write(s3.download_fileobj('amzn-s3-demo-bucket', 'OBJECT_NAME', tmp))
+df = chunk_load_data_using_gzeus(tmp.name) # a wrapper function for the code shown above.
+tmp.close()
+```
+
+Almost always, the machine should have enough disk space. In `chunk_load_data_using_gzeus`, data is read by chunks and therefore won't lead to OOM errors. It can be any wrapper around `stream_polars_csv_gz` provided by the package.
+
 ## Road Maps
-1. Should work with major cloud storage solutions such as s3. Or at least make sure it works with tmpfile and users can download to a tmpfile first.
+1. To be decided
 
 ## Other Projects to Check Out
 1. Dataframe-friendly data analysis package [polars_ds](https://github.com/abstractqqq/polars_ds_extension)
