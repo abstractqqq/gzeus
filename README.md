@@ -76,13 +76,13 @@ However, generally speaking, I find that for .csv.gz files:
 
 ## Cloud Files
 
-To support "chunk read" from any cloud major provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk each time. To name a few:
+To support "chunk read" from any major cloud provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk of data each time. To name a few:
 
 1. Increase the number of calls to the storage
 2. Repeatedly opening the file and seeking to the last read position. 
 3. Rate limits issues, especially with VPN. E.g. to get better performance, gzeus needs to read 10MB+ per chunk, but this will increase "packets per second" significantly.
 
-A workaround is to use temp files. For example, for Amazon s3, one can do the following:
+A workaround is to use temp files. For example, for AWS s3, one can do the following:
 
 ```python
 import tempfile
@@ -91,7 +91,7 @@ import boto3
 s3 = boto3.client('s3')
 
 tmp = tempfile.NamedTemporaryFile()
-tmp.write(s3.download_fileobj('amzn-s3-demo-bucket', 'OBJECT_NAME', tmp))
+s3.download_fileobj('amzn-s3-demo-bucket', 'OBJECT_NAME', tmp)
 df = chunk_load_data_using_gzeus(tmp.name) # a wrapper function for the code shown above.
 tmp.close()
 ```
@@ -103,3 +103,4 @@ Almost always, the machine should have enough disk space. In `chunk_load_data_us
 
 ## Other Projects to Check Out
 1. Dataframe-friendly data analysis package [polars_ds](https://github.com/abstractqqq/polars_ds_extension)
+2. For a more sophisticated but more feature-complete package for streaming csv.gz, see [polars_streaming_csv_decompression](https://github.com/ghuls/polars_streaming_csv_decompression)
