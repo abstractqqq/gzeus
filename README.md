@@ -10,6 +10,8 @@ This package is designed for workloads that
 
 2. You have additional rules that you want to apply while reading, and you want to work in a chunk by chunk fashion that saves you memory.
 
+3. You know what you are doing and prefer a more customizable experience than a package like [polars_streaming_csv_decompression](https://github.com/ghuls/polars_streaming_csv_decompression)
+
 This package provides a Chunker class that will read gz compressed text file by chunks. In the case of csv files, each chunk will represent a proper decompressed csv file and only the first chunk will have header info, if headers are present. The Chunker will produce these chunks in a streaming fashion, thus minimizing memory load.
 
 **This package can potentially be used to stream large gzipped text files as well. But is not capable of semantic chunking, which is often needed for text processing for LLMs. This package only chunks by identifying the last needle (new line character) in the haystack (text string) in the current buffer.**
@@ -26,17 +28,16 @@ If you have Polars installed already:
 ```python
 from gzeus import stream_polars_csv_gz
 
-for df_chunk in stream_polars_csv_gz("PATH TO YOUR DATA", func = your_func):
-    # do work with df_chunk
+for output_of_your_func in stream_polars_csv_gz("PATH TO YOUR DATA", func = your_func):
+    # do work on the output of your func
 ```
-where your_func should be `pl.LazyFrame -> pl.DataFrame`. If you need more control over the byte chunks, you can structure your code like below:
+where your_func should be `pl.LazyFrame -> Any`. If you need more control over the iteration and data bytes, you can structure you code as below:
 
 ```python
 from gzeus import Chunker
 import polars as pl
 
-# Turn portion of the produced bytes into a DataFrame. Only possible with Polars, 
-# or dataframe packages with "lazy" capabilities.
+# Turn portion of the produced bytes into a DataFrame.
 def bytes_into_df(df:pl.LazyFrame) -> pl.DataFrame:
     return df.filter(
         pl.col("City_Category") == 'A'
@@ -62,7 +63,7 @@ df = pl.concat(dfs)
 df.head()
 ```
 
-## Performance
+## Performance vs. Pandas
 
 See [here](./benches/bench.ipynb).
 
@@ -72,7 +73,7 @@ However, generally speaking, I find that for .csv.gz files:
 
 1. GZeus + Polars is at least a 50% reduction in time than pd.read_csv with zero additional work on each chunk
 2. If you set higher buffer size, GZeus + Polars can take only 1/5 of the time of pandas.read_csv.
-2. Even faster with more workload per chunk (mostly because of Polars).
+3. Even faster with more workload per chunk (mostly because of Polars).
 
 ## Cloud Files
 
