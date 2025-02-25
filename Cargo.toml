@@ -12,7 +12,7 @@ flate2 = {version = "1.0.35", default-features = false, features = ["zlib-ng"]} 
 memchr = {version = "2.7.4", features = ["std"]}
 
 # Python Interop
-pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"]} # "experimental-async"
+pyo3 = { version = "0.23.3", features = ["extension-module", "abi3-py39"]} # "experimental-async"
 
 [profile.release]
 codegen-units = 1
