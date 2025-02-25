@@ -5,19 +5,25 @@ __version__ = "0.1.0"
 from pathlib import Path
 from .chunker import Chunker
 from collections.abc import Iterable, Callable
+from typing import Any
 
 def stream_polars_csv_gz(
     file_path: str | Path
-    , buffer_size: int = 1_000_000
+    , buffer_size: int = 10_000_000
     , new_line_symbol: str = "\n"
     , func: Callable | None = None
     , schema: "pl.Schema" | None = None
     , **kwargs
-) -> "Iterable[pl.DataFrame]":
+) -> Iterable[Any]:
     """
     Helper function that reads .csv.gz files in chunks. This requires Polars
-    to be installed and should be version >= 1.4. This doesn't check Polars version
+    to be installed and should be version >= 1. This doesn't check Polars version
     for the user. The data schema, if not provided, will be inferred on the first chunk.
+    The output type of this is an iterable of the output of `func`. If `func` 
+    is None, then output will be an Iterable[pl.DataFrame]. If `func` returns (int, pl.DataFrame),
+    then output will be Iterable[(int, pl.DataFrame)], etc.
+
+    Please make sure that your system has > 10mb of RAM.
 
     Parameters
     ----------
@@ -29,7 +35,7 @@ def stream_polars_csv_gz(
         The new line symbol for the .csv.gz file
     func
         An optional processor function that processes each chunk. The function signature
-        should be func(df: pl.LazyFrame) -> pl.DataFrame. Notice the function input should
+        should be func(df: pl.LazyFrame) -> Any. Notice the function input should
         be a lazy frame, because we can maximally optimize our operation on the chunk when it 
         is only scanned, not fully read into memory.
     schema

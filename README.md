@@ -10,6 +10,8 @@ This package is designed for workloads that
 
 2. You have additional rules that you want to apply while reading, and you want to work in a chunk by chunk fashion that saves you memory.
 
+3. You know what you are doing and prefer a more customizable experience than a package like [polars_streaming_csv_decompression](https://github.com/ghuls/polars_streaming_csv_decompression)
+
 This package provides a Chunker class that will read gz compressed text file by chunks. In the case of csv files, each chunk will represent a proper decompressed csv file and only the first chunk will have header info, if headers are present. The Chunker will produce these chunks in a streaming fashion, thus minimizing memory load.
 
 **This package can potentially be used to stream large gzipped text files as well. But is not capable of semantic chunking, which is often needed for text processing for LLMs. This package only chunks by identifying the last needle (new line character) in the haystack (text string) in the current buffer.**
@@ -26,17 +28,16 @@ If you have Polars installed already:
 ```python
 from gzeus import stream_polars_csv_gz
 
-for df_chunk in stream_polars_csv_gz("PATH TO YOUR DATA", func = your_func):
-    # do work with df_chunk
+for output_of_your_func in stream_polars_csv_gz("PATH TO YOUR DATA", func = your_func):
+    # do work on the output of your func
 ```
-where your_func should be `pl.LazyFrame -> pl.DataFrame`. If you need more control over the byte chunks, you can structure your code like below:
+where your_func should be `pl.LazyFrame -> Any`. If you need more control over the iteration and data bytes, you can structure you code as below:
 
 ```python
 from gzeus import Chunker
 import polars as pl
 
-# Turn portion of the produced bytes into a DataFrame. Only possible with Polars, 
-# or dataframe packages with "lazy" capabilities.
+# Turn portion of the produced bytes into a DataFrame.
 def bytes_into_df(df:pl.LazyFrame) -> pl.DataFrame:
     return df.filter(
         pl.col("City_Category") == 'A'
@@ -62,7 +63,7 @@ df = pl.concat(dfs)
 df.head()
 ```
 
-## Performance
+## Performance vs. Pandas
 
 See [here](./benches/bench.ipynb).
 
@@ -72,17 +73,17 @@ However, generally speaking, I find that for .csv.gz files:
 
 1. GZeus + Polars is at least a 50% reduction in time than pd.read_csv with zero additional work on each chunk
 2. If you set higher buffer size, GZeus + Polars can take only 1/5 of the time of pandas.read_csv.
-2. Even faster with more workload per chunk (mostly because of Polars).
+3. Even faster with more workload per chunk (mostly because of Polars).
 
 ## Cloud Files
 
-To support "chunk read" from any cloud major provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk each time. To name a few:
+To support "chunk read" from any major cloud provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk of data each time. To name a few:
 
 1. Increase the number of calls to the storage
 2. Repeatedly opening the file and seeking to the last read position. 
 3. Rate limits issues, especially with VPN. E.g. to get better performance, gzeus needs to read 10MB+ per chunk, but this will increase "packets per second" significantly.
 
-A workaround is to use temp files. For example, for Amazon s3, one can do the following:
+A workaround is to use temp files. For example, for AWS s3, one can do the following:
 
 ```python
 import tempfile
@@ -91,7 +92,7 @@ import boto3
 s3 = boto3.client('s3')
 
 tmp = tempfile.NamedTemporaryFile()
-tmp.write(s3.download_fileobj('amzn-s3-demo-bucket', 'OBJECT_NAME', tmp))
+s3.download_fileobj('amzn-s3-demo-bucket', 'OBJECT_NAME', tmp)
 df = chunk_load_data_using_gzeus(tmp.name) # a wrapper function for the code shown above.
 tmp.close()
 ```
@@ -103,3 +104,4 @@ Almost always, the machine should have enough disk space. In `chunk_load_data_us
 
 ## Other Projects to Check Out
 1. Dataframe-friendly data analysis package [polars_ds](https://github.com/abstractqqq/polars_ds_extension)
+2. For a more sophisticated but more feature-complete package for streaming csv.gz, see [polars_streaming_csv_decompression](https://github.com/ghuls/polars_streaming_csv_decompression)
