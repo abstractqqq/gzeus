@@ -12,7 +12,7 @@ def stream_polars_csv_gz(
     , buffer_size: int = 10_000_000
     , new_line_symbol: str = "\n"
     , func: Callable | None = None
-    , schema: "pl.Schema" | None = None
+    , schema: "Schema" | None = None
     , **kwargs
 ) -> Iterable[Any]:
     """
@@ -37,12 +37,14 @@ def stream_polars_csv_gz(
         An optional processor function that processes each chunk. The function signature
         should be func(df: pl.LazyFrame) -> Any. Notice the function input should
         be a lazy frame, because we can maximally optimize our operation on the chunk when it 
-        is only scanned, not fully read into memory.
+        is only scanned, not read into memory. Also note that if func is provided, 
+        the output in the iterator are chunks we get after applying func to the original chunks.
     schema
-        Schema of the dataset, if known. If none, this will be inferred on the first chunk.
+        Schema of the dataset, if known. If none, this will be inferred on the first chunk. This must
+        be a Polars-compatible Schema format.
     **kwargs
         Kwargs passed to Polars's scan_csv. Kwargs should not contain `has_header`, 
-        since it is used internally.
+        and `schema`, since these are used internally.
     """
     import polars as pl
 
@@ -51,10 +53,11 @@ def stream_polars_csv_gz(
 
     ck = Chunker(buffer_size=buffer_size, new_line_symbol=new_line_symbol).with_local_file(file_path)
 
-    df_temp = pl.scan_csv(ck.read_one(), **kwargs) # first chunk
     if schema is None:
-        use_schema = df_temp.collect_schema() # Infer schema from first chunk
+        df_temp = pl.scan_csv(ck.read_one(), **kwargs) # first chunk
+        use_schema = df_temp.collect_schema()
     else:
+        df_temp = pl.scan_csv(ck.read_one(), schema=schema, **kwargs)
         use_schema = schema
 
     if func is None:
