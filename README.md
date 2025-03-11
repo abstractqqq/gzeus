@@ -1,4 +1,4 @@
-# GZeus 
+# G-Zeus 
 
 is a package that chunk-reads *GZipped* text files *LIGHTENING* fast. 
 
