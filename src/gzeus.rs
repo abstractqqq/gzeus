@@ -1,6 +1,5 @@
 use memchr::{memmem, memmem::FinderRev};
 use std::io::{Error, Read};
-// use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(Debug)]
 pub enum ReaderErr {
@@ -81,16 +80,4 @@ impl CsvChunker {
         self.process_read_result(read_result, clean_buffer)
             .map(|n| n + leftover_size) // n + leftover_size = actual valid index range: 0..this value
     }
-
-    // // Will be executed in a tokio runtime and will block
-    // pub async fn async_read_and_write<R: AsyncRead + std::marker::Unpin>(
-    //     &mut self,
-    //     reader: &mut R,
-    //     write_buffer: &mut [u8],
-    // ) -> Result<usize, ReaderErr> {
-    //     let (leftover_size, clean_buffer) = self.push_leftover_to_buffer(write_buffer);
-    //     let read_result = reader.read(clean_buffer).await;
-    //     self.process_read_result(read_result, clean_buffer)
-    //         .map(|n| n + leftover_size)
-    // }
 }

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from pathlib import Path
 from .chunker import Chunker
@@ -12,7 +12,7 @@ def stream_polars_csv_gz(
     , buffer_size: int = 10_000_000
     , new_line_symbol: str = "\n"
     , func: Callable | None = None
-    , schema: "Schema" | None = None
+    , schema: Any | None = None
     , **kwargs
 ) -> Iterable[Any]:
     """

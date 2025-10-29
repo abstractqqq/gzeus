@@ -3,9 +3,10 @@
 maturin[patchelf]>=1.7; sys_platform == "linux"
 maturin>=1.7; sys_platform != "linux"
 pre-commit
-ipykernel
 
 # For testing
+ipykernel
+jupyter
 polars>=1
 pandas>=1
 pyarrow
