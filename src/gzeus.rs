@@ -38,35 +38,20 @@ impl CsvChunker {
     /// part will be the new leftover. Finally, return the number of bytes in the buffer we actually
     /// populated. (0..last_index for most of the cases.)
     #[inline]
-    pub fn process_read_result(
-        &mut self,
-        result: Result<usize, std::io::Error>,
-        buffer: &[u8],
-    ) -> Result<usize, ReaderErr> {
-        match result {
-            Ok(n) => {
-                if n == 0 {
-                    Err(ReaderErr::Finished)
-                } else {
-                    match self.finder.rfind(&buffer[0..n]) {
-                        Some(j) => {
-                            let last_index = j + 1;
-                            // Leftover is cleaned in `push_leftover_to_buffer`. So we can extend from slice.
-                            self.leftover_chunk
-                                .extend_from_slice(&buffer[last_index..n]);
-                            Ok(last_index)
-                        }
-                        None => {
-                            // No more separtor. This means we have reached the end and the end
-                            // doesn't have a separator.
-                            // Data is read into the right buffer.
-                            self.leftover_chunk.shrink_to_fit();
-                            Ok(n)
-                        }
-                    }
-                }
+    pub fn process_read_result(&mut self, buffer: &[u8]) -> usize {
+        match self.finder.rfind(buffer) {
+            Some(j) => {
+                let last_index = j + 1;
+                // Leftover is cleaned in `push_leftover_to_buffer`. So we can extend from slice.
+                self.leftover_chunk.extend_from_slice(&buffer[last_index..]);
+
+                last_index
             }
-            Err(e) => Err(ReaderErr::IoError(e)),
+            None => {
+                // Reached the end. No more separtor.
+                self.leftover_chunk.shrink_to_fit();
+                buffer.len()
+            }
         }
     }
 
@@ -76,8 +61,21 @@ impl CsvChunker {
         write_buffer: &mut [u8],
     ) -> Result<usize, ReaderErr> {
         let (leftover_size, clean_buffer) = self.push_leftover_to_buffer(write_buffer);
-        let read_result = reader.read(clean_buffer);
-        self.process_read_result(read_result, clean_buffer)
-            .map(|n| n + leftover_size) // n + leftover_size = actual valid index range: 0..this value
+        let capacity = clean_buffer.len();
+        let mut cursor: usize = 0;
+        while cursor < capacity {
+            match reader.read(&mut clean_buffer[cursor..]) {
+                Ok(n) => {
+                    if n <= 0 {
+                        break;
+                    } else {
+                        cursor += n;
+                    }
+                }
+                Err(e) => return Err(ReaderErr::IoError(e)),
+            }
+        }
+        // cursor + leftover_size = actual valid index range: 0..this value
+        Ok(leftover_size + self.process_read_result(&clean_buffer[..cursor]))
     }
 }

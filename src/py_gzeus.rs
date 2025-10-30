@@ -27,7 +27,7 @@ impl PyGzChunker {
         Ok(Self {
             _chunker: CsvChunker::new(new_line_symbol),
             _reader: gz,
-            _chunk_buffer: vec![0u8; buffer_size + 4096],
+            _chunk_buffer: vec![0u8; buffer_size + 4098],
             started: false,
             finished: false,
             n_reads: 0,
