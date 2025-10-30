@@ -32,29 +32,6 @@ impl CsvChunker {
         (left.len(), right)
     }
 
-    /// Process the read result. If reader succeeds and returns an int n,
-    /// We find the last position of a line change symbol in the range 0..n by using memchr to search
-    /// the bytes. The last index will be = last position of the line change + 1. The last_index..n
-    /// part will be the new leftover. Finally, return the number of bytes in the buffer we actually
-    /// populated. (0..last_index for most of the cases.)
-    #[inline]
-    pub fn process_read_result(&mut self, buffer: &[u8]) -> usize {
-        match self.finder.rfind(buffer) {
-            Some(j) => {
-                let last_index = j + 1;
-                // Leftover is cleaned in `push_leftover_to_buffer`. So we can extend from slice.
-                self.leftover_chunk.extend_from_slice(&buffer[last_index..]);
-
-                last_index
-            }
-            None => {
-                // Reached the end. No more separtor.
-                self.leftover_chunk.shrink_to_fit();
-                buffer.len()
-            }
-        }
-    }
-
     pub fn read_and_write<R: Read>(
         &mut self,
         reader: &mut R,
@@ -67,7 +44,7 @@ impl CsvChunker {
             match reader.read(&mut clean_buffer[cursor..]) {
                 Ok(n) => {
                     if n <= 0 {
-                        break;
+                        return Err(ReaderErr::Finished);
                     } else {
                         cursor += n;
                     }
@@ -75,7 +52,19 @@ impl CsvChunker {
                 Err(e) => return Err(ReaderErr::IoError(e)),
             }
         }
-        // cursor + leftover_size = actual valid index range: 0..this value
-        Ok(leftover_size + self.process_read_result(&clean_buffer[..cursor]))
+        // Find index of last line change symbol
+        let new_bytes = match self.finder.rfind(&clean_buffer[..cursor]) {
+            Some(j) => {
+                let last_index = j + 1;
+                // Leftover is cleaned in `push_leftover_to_buffer`. So we can extend from slice.
+                self.leftover_chunk
+                    .extend_from_slice(&clean_buffer[last_index..]);
+                last_index
+            }
+            // Reached the end. No more line change
+            None => cursor,
+        };
+
+        Ok(leftover_size + new_bytes)
     }
 }
