@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -19,6 +20,7 @@ from gzeus._gzeus import (
 )
 
 __all__ = ["Chunker"]
+logger = logging.getLogger(__name__)
 
 class Chunker:
     
@@ -117,7 +119,7 @@ class Chunker:
         self.symbol = new_line_symbol
         return self
 
-    def with_local_file(self, file_path: str | Path) -> Self:
+    def with_local_file(self, file_path: str | Path, verbose:bool=False) -> Self:
         """
         Prepares the chunker by letting it know the file to be read.
 
@@ -125,6 +127,8 @@ class Chunker:
         ----------
         file_path
             The file path
+        verbose
+            Whether to print more info about the job
         """
         self.compression = get_compression_method_local(file_path)
         if self.compression == CompressionMethod.GZ:
@@ -135,6 +139,14 @@ class Chunker:
             )
 
         self._description = f"Target file is a local file at path: {file_path}"
+        if verbose:
+            with open(file_path, "rb") as f:
+                # place the cursor in the right position
+                f.seek(-4, os.SEEK_END)
+                # get the size of uncompressed input from last 4 bytes
+                size = int.from_bytes(f.read(), "little" )
+                logger.info(f"Estimated uncompressed size is: {size} bytes, estimated # chunks needed: {int(size/self.buffer_size)}. (This estimate can be wrong if the file is a Multi-file gz instead of a single-file gz.)")
+
         return self
 
     def n_reads(self) -> int:

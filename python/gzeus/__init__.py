@@ -57,7 +57,7 @@ def stream_polars_csv_gz(
     if 'has_header' in kwargs:
         raise ValueError("Input `has_header` should not be a kwarg.")
 
-    ck = Chunker(buffer_size=buffer_size, new_line_symbol=new_line_symbol).with_local_file(file_path)
+    ck = Chunker(buffer_size=buffer_size, new_line_symbol=new_line_symbol).with_local_file(file_path, verbose=verbose)
 
     if schema is None:
         df_temp = pl.scan_csv(ck.read_one(), **kwargs) # first chunk
