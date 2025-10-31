@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from pathlib import Path
 from .chunker import Chunker
 from collections.abc import Iterable, Callable
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 def stream_polars_csv_gz(
     file_path: str | Path
     , buffer_size: int = 10_000_000
     , new_line_symbol: str = "\n"
     , func: Callable | None = None
-    , schema: "Schema" | None = None
+    , schema: Any | None = None
+    , verbose: bool = False
     , **kwargs
 ) -> Iterable[Any]:
     """
@@ -42,6 +46,8 @@ def stream_polars_csv_gz(
     schema
         Schema of the dataset, if known. If none, this will be inferred on the first chunk. This must
         be a Polars-compatible Schema format.
+    verbose
+        Whether to print logs
     **kwargs
         Kwargs passed to Polars's scan_csv. Kwargs should not contain `has_header`, 
         and `schema`, since these are used internally.
@@ -51,7 +57,7 @@ def stream_polars_csv_gz(
     if 'has_header' in kwargs:
         raise ValueError("Input `has_header` should not be a kwarg.")
 
-    ck = Chunker(buffer_size=buffer_size, new_line_symbol=new_line_symbol).with_local_file(file_path)
+    ck = Chunker(buffer_size=buffer_size, new_line_symbol=new_line_symbol).with_local_file(file_path, verbose=verbose)
 
     if schema is None:
         df_temp = pl.scan_csv(ck.read_one(), **kwargs) # first chunk
@@ -65,6 +71,9 @@ def stream_polars_csv_gz(
     else:
         yield func(df_temp)
 
+    if verbose:
+        logger.info(f"Number of reads: {ck.n_reads()}. Decompressed: {ck.bytes_decompressed()} bytes.")
+
     for byte_chunk in ck.chunks():
         if func is None:
             yield pl.read_csv(byte_chunk, has_header=False, schema=use_schema, **kwargs)
@@ -72,6 +81,9 @@ def stream_polars_csv_gz(
             yield func(
                 pl.scan_csv(byte_chunk, has_header=False, schema=use_schema, **kwargs)
             )
+
+        if verbose:
+            logger.info(f"Number of reads: {ck.n_reads()}. Decompressed: {ck.bytes_decompressed()} bytes.")
 
 
 

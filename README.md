@@ -65,7 +65,7 @@ df.head()
 
 ## Performance vs. Pandas
 
-See [here](./benches/bench.ipynb).
+See [here](./examples/examples.ipynb).
 
 It is extremely hard to have an apples-to-apples comparison with other tools. Here I will focus on the comparison with pandas.read_csv, which has an iterator option. Note: GZeus chunks are defined by byte-sizes, while pandas.read_csv iterator has a fixed number of rows per chunk.
 
@@ -98,9 +98,6 @@ tmp.close()
 ```
 
 Almost always, the machine should have enough disk space. In `chunk_load_data_using_gzeus`, data is read by chunks and therefore won't lead to OOM errors. It can be any wrapper around `stream_polars_csv_gz` provided by the package.
-
-## Road Maps
-1. To be decided
 
 ## Other Projects to Check Out
 1. Dataframe-friendly data analysis package [polars_ds](https://github.com/abstractqqq/polars_ds_extension)

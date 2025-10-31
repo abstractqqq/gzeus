@@ -1,6 +1,6 @@
 [package]
 name = "gzeus"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [lib]
@@ -8,13 +8,13 @@ name = "gzeus"
 crate-type = ["cdylib"]
 
 [dependencies]
-flate2 = {version = "1.0.35", default-features = false, features = ["zlib-ng"]} # features = ["zlib-rs", "zlib-ng"]
+flate2 = {version = "1.1", default-features =  false, features = ["zlib-rs"]}
 memchr = {version = "2.7.4", features = ["std"]}
 
 # Python Interop
-pyo3 = { version = "0.23.3", features = ["extension-module", "abi3-py39"]} # "experimental-async"
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py39"]}
 
 [profile.release]
 codegen-units = 1
-strip = "symbols" 
+strip = "symbols"
 lto = "fat"
