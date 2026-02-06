@@ -1,8 +1,14 @@
-# G-Zeus 
+# Archived. 
+
+Polars now natively supports lazy reading of csv.gz files!!!!!!
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## G-Zeus 
 
 is a package that chunk-reads *GZipped* text files *LIGHTENING* fast. 
 
-## What is this package for?
+### What is this package for?
 
 This package is designed for workloads that 
 
@@ -16,7 +22,7 @@ This package provides a Chunker class that will read gz compressed text file by 
 
 **This package can potentially be used to stream large gzipped text files as well. But is not capable of semantic chunking, which is often needed for text processing for LLMs. This package only chunks by identifying the last needle (new line character) in the haystack (text string) in the current buffer.**
 
-## Assumptions
+### Assumptions
 
 The new_line_symbol provided by the user only shows up in the underlying text file as new line symbol.
 
@@ -63,7 +69,7 @@ df = pl.concat(dfs)
 df.head()
 ```
 
-## Performance vs. Pandas
+### Performance vs. Pandas
 
 See [here](./examples/examples.ipynb).
 
@@ -75,7 +81,7 @@ However, generally speaking, I find that for .csv.gz files:
 2. If you set higher buffer size, GZeus + Polars can take only 1/5 of the time of pandas.read_csv.
 3. Even faster with more workload per chunk (mostly because of Polars).
 
-## Cloud Files
+### Cloud Files
 
 To support "chunk read" from any major cloud provider is no easy task. Not only will it require an async interface in Rust, which is much harder to write and maintain, but there are also performance issues related to getting only a small chunk of data each time. To name a few:
 
